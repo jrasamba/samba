@@ -48,6 +48,7 @@ def scc_common_flags(conf):
 	v['STATICLIB_ST']        = '-l%s'
 	v['STATICLIBPATH_ST']    = '-L%s'
 	v['CCDEFINES_ST']        = '-D%s'
+	v['RPATH_ST']            = '-R%s'
 
 	v['SONAME_ST']           = '-Wl,-h -Wl,%s'
 	v['SHLIB_MARKER']        = '-Bdynamic'

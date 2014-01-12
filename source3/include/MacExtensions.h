@@ -5,6 +5,7 @@
    Copyright (C) John H Terpstra 1996-1998
    Copyright (C) Luke Kenneth Casson Leighton 1996-1998
    Copyright (C) Paul Ashton 1998
+   Copyright (C) Ralph Boehme 2014
     
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,7 +40,7 @@
 /*
 ** NT's AFP_AfpInfo stream structure
 */
-#define APF_INFO_SIZE		0x3c		
+#define AFP_INFO_SIZE		0x3c
 #define AFP_Signature		0x41465000 
 #define AFP_Version			0x00000100
 #define AFP_BackupTime		0x00000080

@@ -47,6 +47,21 @@ static NTSTATUS dcesrv_echo_EchoData(struct dcesrv_call_state *dce_call, TALLOC_
 	return NT_STATUS_OK;
 }
 
+static NTSTATUS dcesrv_echo_EchoString(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx, struct echo_EchoString *r)
+{
+	if ( r->in.len == 0 ) {
+		r->out.out_data = NULL;
+		return;
+	}
+
+	r->out.out_data = (uint8_t *)talloc_memdup(mem_ctx, r->in.in_data, r->in.len);
+	if (!r->out.out_data) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	return NT_STATUS_OK;
+}
+
 static NTSTATUS dcesrv_echo_SinkData(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx, struct echo_SinkData *r)
 {
 	return NT_STATUS_OK;

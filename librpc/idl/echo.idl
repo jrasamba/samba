@@ -19,6 +19,12 @@ interface rpcecho
 		[in] [size_is(len)] uint8 in_data[],
 		[out] [size_is(len)] uint8 out_data[]
 	);
+	/* Echo a string back at the caller */
+	void echo_EchoString(
+		[in] uint32 len,
+		[in] [size_is(len)] uint8 in_data[],
+		[out] [size_is(len)] uint8 out_data[]
+	);
 	/* Sink data to the server */
 	void echo_SinkData(
 		[in] uint32 len,

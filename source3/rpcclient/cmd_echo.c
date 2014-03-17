@@ -100,6 +100,36 @@ done:
 	return status;
 }
 
+static NTSTATUS cmd_echo_string(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx,
+				int argc, const char **argv)
+{
+	struct dcerpc_binding_handle *b = cli->binding_handle;
+	uint32 i;
+	NTSTATUS status;
+	uint8_t *in_data = NULL, *out_data = NULL;
+
+	if (argc != 2) {
+		printf("Usage: %s {string}\n", argv[0]);
+		return NT_STATUS_OK;
+	}
+
+	in_data = argv[1];
+	out_data = SMB_MALLOC(strlen(in_data) + 1);
+	out_data[strlen(in_data)] = 0;
+
+	status = dcerpc_echo_EchoString(b, mem_ctx, strlen(in_data) + 1, in_data, out_data);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	DEBUG(1, ("echoed string: %s\n", out_data));
+
+done:
+	SAFE_FREE(out_data);
+
+	return status;
+}
+
 static NTSTATUS cmd_echo_source_data(struct rpc_pipe_client *cli, 
 				     TALLOC_CTX *mem_ctx, int argc, 
 				     const char **argv)
@@ -186,6 +216,7 @@ struct cmd_set echo_commands[] = {
 
 	{ "echoaddone", RPC_RTYPE_NTSTATUS, cmd_echo_add_one,     NULL, &ndr_table_rpcecho, NULL, "Add one to a number", "" },
 	{ "echodata",   RPC_RTYPE_NTSTATUS, cmd_echo_data,        NULL, &ndr_table_rpcecho, NULL, "Echo data",           "" },
+	{ "echostring", RPC_RTYPE_NTSTATUS, cmd_echo_string,      NULL, &ndr_table_rpcecho, NULL, "Echo a string",       "" },
 	{ "sinkdata",   RPC_RTYPE_NTSTATUS, cmd_echo_sink_data,   NULL, &ndr_table_rpcecho, NULL, "Sink data",           "" },
 	{ "sourcedata", RPC_RTYPE_NTSTATUS, cmd_echo_source_data, NULL, &ndr_table_rpcecho, NULL, "Source data",         "" },
 	{ NULL }

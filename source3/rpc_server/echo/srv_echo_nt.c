@@ -53,6 +53,20 @@ void _echo_EchoData(struct pipes_struct *p, struct echo_EchoData *r)
 	return;
 }
 
+void _echo_EchoString(struct pipes_struct *p, struct echo_EchoString *r)
+{
+	DEBUG(10, ("_echo_EchoData\n"));
+
+	if ( r->in.len == 0 ) {
+		r->out.out_data = NULL;
+		return;
+	}
+
+	r->out.out_data = talloc_array(p->mem_ctx, uint8, r->in.len);
+	memcpy( r->out.out_data, r->in.in_data, r->in.len );
+	return;
+}
+
 /* Sink an array of data */
 
 void _echo_SinkData(struct pipes_struct *p, struct echo_SinkData *r)

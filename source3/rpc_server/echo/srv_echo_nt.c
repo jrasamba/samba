@@ -99,10 +99,16 @@ void _echo_SourceData(struct pipes_struct *p, struct echo_SourceData *r)
 	return;
 }
 
-void _echo_TestCall(struct pipes_struct *p, struct echo_TestCall *r)
+NTSTATUS _echo_TestCall(struct pipes_struct *p, struct echo_TestCall *r)
 {
-	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
-	return;
+	char *s;
+
+	DEBUG(1, ("_echo_TestCall: %s\n", r->in.s1));
+
+	s = talloc_strdup(p->mem_ctx, r->in.s1);
+	*r->out.s2 = s;
+
+	return NT_STATUS_OK;
 }
 
 NTSTATUS _echo_TestCall2(struct pipes_struct *p, struct echo_TestCall2 *r)

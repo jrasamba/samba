@@ -20,6 +20,7 @@
 #include "includes.h"
 #include "ntdomain.h"
 #include "../librpc/gen_ndr/srv_mdssvc.h"
+#include "mdssvc/mdssvc.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
@@ -95,6 +96,8 @@ void _mdssvc_cmd(struct pipes_struct *p, struct mdssvc_cmd *r)
 {
 	DEBUG(10, ("mdssvc_cmd\n"));
 	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
+
+	mds_dispatch();
 
 	return;
 }

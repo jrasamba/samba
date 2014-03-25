@@ -123,7 +123,7 @@ bld.SAMBA3_SUBSYSTEM('RPC_WKSSVC',
 bld.SAMBA3_SUBSYSTEM('RPC_MDSSVC',
                     source='''mdssvc/srv_mdssvc_nt.c
                     ../../librpc/gen_ndr/srv_mdssvc.c''',
-                    deps='samba-util',
+                    deps='MDSSVC samba-util',
                     enabled=bld.env.with_spotlight)
 
 # RPC_SERVICE

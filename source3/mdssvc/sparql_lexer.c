@@ -361,8 +361,8 @@ static void yy_fatal_error (yyconst char msg[]  );
 	*yy_cp = '\0'; \
 	(yy_c_buf_p) = yy_cp;
 
-#define YY_NUM_RULES 17
-#define YY_END_OF_BUFFER 18
+#define YY_NUM_RULES 18
+#define YY_END_OF_BUFFER 19
 /* This struct is not used in this scanner,
    but its presence is necessary. */
 struct yy_trans_info
@@ -372,12 +372,12 @@ struct yy_trans_info
 	};
 static yyconst flex_int16_t yy_accept[57] =
     {   0,
-        0,    0,   18,   17,   16,   17,    5,   17,   17,    6,
-        7,   15,   14,   12,   17,   13,   15,   15,   15,   17,
-       17,   17,   17,   11,    0,    8,   15,    0,    0,    0,
-       10,   15,   15,   15,    9,    0,    0,    0,   15,   15,
-       15,    0,    0,   15,   15,    4,    0,   15,    3,    0,
-       15,    0,    1,    0,    2,    0
+        0,    0,   19,   18,   17,   18,    5,   18,   18,    6,
+        7,   16,   15,   13,   12,   14,   16,   16,   16,   18,
+       18,   18,   18,   11,    0,    8,   16,    0,    0,    0,
+       10,   16,   16,   16,    9,    0,    0,    0,   16,   16,
+       16,    0,    0,   16,   16,    4,    0,   16,    3,    0,
+       16,    0,    1,    0,    2,    0
     } ;
 
 static yyconst flex_int32_t yy_ec[256] =
@@ -839,35 +839,40 @@ return UNEQUAL;
 case 12:
 YY_RULE_SETUP
 #line 48 "sparql_lexer.l"
-return LT;
+return EQUAL;
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
 #line 49 "sparql_lexer.l"
-return GT;
+return LT;
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
 #line 50 "sparql_lexer.l"
-return COMMA;
+return GT;
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
 #line 51 "sparql_lexer.l"
-{yylval.sval = talloc_strdup(ssp_slq, yytext); return WORD;}
+return COMMA;
 	YY_BREAK
 case 16:
-/* rule 16 can match eol */
 YY_RULE_SETUP
 #line 52 "sparql_lexer.l"
-/* ignore */
+{yylval.sval = talloc_strdup(ssp_slq, yytext); return WORD;}
 	YY_BREAK
 case 17:
+/* rule 17 can match eol */
 YY_RULE_SETUP
 #line 53 "sparql_lexer.l"
+/* ignore */
+	YY_BREAK
+case 18:
+YY_RULE_SETUP
+#line 54 "sparql_lexer.l"
 ECHO;
 	YY_BREAK
-#line 871 "sparql_lexer.c"
+#line 876 "sparql_lexer.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -1861,7 +1866,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 53 "sparql_lexer.l"
+#line 54 "sparql_lexer.l"
 
 
 

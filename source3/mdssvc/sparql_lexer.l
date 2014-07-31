@@ -45,6 +45,7 @@ true                                  {yylval.bval = true; return BOOL;}
 \|\|                                  return OR;
 \=\=                                  return EQUAL;
 \!\=                                  return UNEQUAL;
+\=                                    return EQUAL;
 \<                                    return LT;
 \>                                    return GT;
 \,                                    return COMMA;

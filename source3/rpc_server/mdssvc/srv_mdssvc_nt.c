@@ -19,11 +19,22 @@
 
 #include "includes.h"
 #include "ntdomain.h"
+#include "rpc_server/mdssvc/srv_mdssvc_nt.h"
 #include "../librpc/gen_ndr/srv_mdssvc.h"
 #include "mdssvc/mdssvc.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
+
+bool init_service_mdssvc(struct messaging_context *msg_ctx)
+{
+	return mds_init(msg_ctx);
+}
+
+bool shutdown_service_mdssvc(void)
+{
+	return mds_shutdown();
+}
 
 void _mdssvc_open(struct pipes_struct *p, struct mdssvc_open *r)
 {
@@ -51,13 +62,22 @@ void _mdssvc_open(struct pipes_struct *p, struct mdssvc_open *r)
 		return;
 	}
 
-	DEBUG(10, ("mdssvc_open: path: %s\n", path));
+	if (lp_spotlight(snum)) {
+		DEBUG(10, ("Spotlight enabled: %s\n", path));
 
-	strlcpy(r->out.share_path, path, 1024);
-	r->out.share_handle->handle_type = 0;
-	r->out.share_handle->uuid.time_low = snum;
-	strlcpy(r->out.share_handle->uuid.node, service, sizeof(r->out.share_handle->uuid.node));
-	*r->out.device_id = *r->in.device_id;
+		/*
+		 * Fake a share UUID using the snum and the service
+		 * name for some more uniqueness.
+		 */
+
+		strlcpy(r->out.share_path, path, 1024);
+		r->out.share_handle->handle_type = 0;
+		r->out.share_handle->uuid.time_low = snum;
+		strlcpy(r->out.share_handle->uuid.node, service,
+			sizeof(r->out.share_handle->uuid.node));
+		*r->out.device_id = *r->in.device_id;
+	}
+
 	*r->out.unkn2 = 0x17;
 	*r->out.unkn3 = 0;
 
@@ -94,10 +114,52 @@ void _mdssvc_unknown1(struct pipes_struct *p, struct mdssvc_unknown1 *r)
 
 void _mdssvc_cmd(struct pipes_struct *p, struct mdssvc_cmd *r)
 {
-	DEBUG(10, ("mdssvc_cmd\n"));
-	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
+	bool ok;
+	int snum = -1;
+	char *rbuf;
+	struct mds_query_ctx *query_ctx;
 
-	mds_dispatch();
+	DEBUG(10, ("mdssvc_cmd\n"));
+
+	snum = r->in.share_handle.uuid.time_low;
+	if (!VALID_SNUM(snum)) {
+		p->fault_state = DCERPC_FAULT_CANT_PERFORM;
+		return;
+	}
+
+	rbuf = talloc_array(p->mem_ctx, char, r->in.max_fragment_size1);
+	if (rbuf == NULL) {
+		p->fault_state = DCERPC_FAULT_CANT_PERFORM;
+		return;
+	}
+	r->out.response_blob->spotlight_blob = rbuf;
+	r->out.response_blob->size = r->in.max_fragment_size1;
+
+	query_ctx = talloc_zero(talloc_tos(), struct mds_query_ctx);
+	if (query_ctx == NULL) {
+		p->fault_state = DCERPC_FAULT_CANT_PERFORM;
+		return;
+	}
+	query_ctx->spath = lp_path(query_ctx, snum);
+	if (query_ctx->spath == NULL) {
+		p->fault_state = DCERPC_FAULT_CANT_PERFORM;
+		return;
+	}
+
+	query_ctx->session_info = p->session_info;
+	query_ctx->snum = snum;
+	query_ctx->request_blob = &r->in.request_blob;
+	query_ctx->response_blob = r->out.response_blob;
+
+	ok = mds_dispatch(query_ctx);
+	if (ok) {
+		*r->out.status = 0;
+		*r->out.unkn9 = 0;
+	} else {
+		/* FIXME: just interpolating from AFP, needs verification */
+		*r->out.status = UINT32_MAX;
+		*r->out.unkn9 = UINT32_MAX;
+	}
 
 	return;
 }

@@ -65,33 +65,33 @@
 /* Line 371 of yacc.c  */
 #line 21 "sparql_parser.y"
 
-  #include "includes.h"
+	#include "includes.h"
+	#include "mdssvc.h"
+	#include "sparql_mapping.h"
 
-  #include "mdssvc.h"
-  #include "sparql_mapping.h"
+	#define YYMALLOC SMB_MALLOC
+	#define YYREALLOC SMB_REALLOC
 
-  #define YYMALLOC SMB_MALLOC
-  #define YYREALLOC SMB_REALLOC
+	struct yy_buffer_state;
+	typedef struct yy_buffer_state *YY_BUFFER_STATE;
+	extern int yylex (void);
+	extern void yyerror (char const *);
+	extern void *yyterminate(void);
+	extern YY_BUFFER_STATE yy_scan_string( const char *str);
+	extern void yy_delete_buffer ( YY_BUFFER_STATE buffer );
 
-  struct yy_buffer_state;
-  typedef struct yy_buffer_state *YY_BUFFER_STATE;
-  extern int yylex (void);
-  extern void yyerror (char const *);
-  extern void *yyterminate(void);
-  extern YY_BUFFER_STATE yy_scan_string( const char *str);
-  extern void yy_delete_buffer ( YY_BUFFER_STATE buffer );
-
-  /* forward declarations */
-  static const char *map_expr(const char *attr, char op, const char *val);
-  static const char *map_daterange(const char *dateattr, time_t date1, time_t date2);
-  static time_t isodate2unix(const char *s);
+	/* forward declarations */
+	static const char *map_expr(const char *attr, char op, const char *val);
+	static const char *map_daterange(const char *dateattr,
+					 time_t date1, time_t date2);
+	static time_t isodate2unix(const char *s);
  
- /* global vars, eg needed by the lexer */
-  struct sl_query *ssp_slq;
+	/* global vars, eg needed by the lexer */
+	struct sl_query *ssp_slq;
 
-  /* local vars */
-  static char *ssp_result;
-  static char sparqlvar;
+	/* local vars */
+	static char *ssp_result;
+	static char sparqlvar;
 
 /* Line 371 of yacc.c  */
 #line 98 "sparql_parser.c"
@@ -152,12 +152,12 @@ extern int yydebug;
 typedef union YYSTYPE
 {
 /* Line 387 of yacc.c  */
-#line 57 "sparql_parser.y"
+#line 58 "sparql_parser.y"
 
-    int ival;
-    const char *sval;
-    bool bval;
-    time_t tval;
+	int ival;
+	const char *sval;
+	bool bval;
+	time_t tval;
 
 
 /* Line 387 of yacc.c  */
@@ -187,20 +187,21 @@ int yyparse ();
 /* Line 387 of yacc.c  */
 #line 51 "sparql_parser.y"
 
-  #define SPRAW_TIME_OFFSET 978307200
-  extern bool map_spotlight_to_sparql_query(struct sl_query *slq, char **sparql_result);
-  extern struct sl_query *ssp_slq;
+	#define SPRAW_TIME_OFFSET 978307200
+	extern bool map_spotlight_to_sparql_query(struct sl_query *slq,
+						  char **sparql_result);
+	extern struct sl_query *ssp_slq;
 
 
 /* Line 387 of yacc.c  */
-#line 197 "sparql_parser.c"
+#line 198 "sparql_parser.c"
 
 #endif /* !YY_YY_SPARQL_PARSER_H_INCLUDED  */
 
 /* Copy the second part of user declarations.  */
 
 /* Line 390 of yacc.c  */
-#line 204 "sparql_parser.c"
+#line 205 "sparql_parser.c"
 
 #ifdef short
 # undef short
@@ -499,9 +500,9 @@ static const yytype_int8 yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,    79,    79,    81,    85,    95,   106,   112,   113,   114,
-     115,   116,   125,   126,   127,   128,   129,   130,   131,   132,
-     136,   140,   141
+       0,    80,    80,    82,    86,    97,   108,   115,   118,   121,
+     124,   127,   137,   138,   139,   140,   141,   142,   143,   144,
+     148,   154,   155
 };
 #endif
 
@@ -1422,147 +1423,160 @@ yyreduce:
     {
         case 4:
 /* Line 1792 of yacc.c  */
-#line 85 "sparql_parser.y"
+#line 86 "sparql_parser.y"
     {
-    ssp_result = talloc_asprintf(ssp_slq,
-                                 "SELECT DISTINCT ?url WHERE "
-                                 "{ ?obj nie:url ?url FILTER(regex(?url, '^file://%s/')) . %s}",
-                                 ssp_slq->path_scope, (yyvsp[(1) - (1)].sval));
-    (yyval.sval) = ssp_result;
+	ssp_result = talloc_asprintf(
+		ssp_slq,
+		"SELECT ?url WHERE { %s . ?obj nie:url ?url . "
+		"FILTER(tracker:uri-is-descendant('file://%s/', ?url)) }",
+		(yyvsp[(1) - (1)].sval), ssp_slq->path_scope);
+	(yyval.sval) = ssp_result;
 }
     break;
 
   case 5:
 /* Line 1792 of yacc.c  */
-#line 95 "sparql_parser.y"
+#line 97 "sparql_parser.y"
     {
-    /*
-     * We can't properly handle these in expressions, fortunately this
-     * is probably only ever used by OS X as sole element in an
-     * expression ie "False" (when Finder window selected our share
-     * but no search string entered yet). Packet traces showed that OS
-     * X Spotlight server then returns a failure (ie -1) which is what
-     * we do here too by calling YYABORT.
-     */
-    YYABORT;
+	/*
+	 * We can't properly handle these in expressions, fortunately this
+	 * is probably only ever used by OS X as sole element in an
+	 * expression ie "False" (when Finder window selected our share
+	 * but no search string entered yet). Packet traces showed that OS
+	 * X Spotlight server then returns a failure (ie -1) which is what
+	 * we do here too by calling YYABORT.
+	 */
+	YYABORT;
 }
     break;
 
   case 6:
 /* Line 1792 of yacc.c  */
-#line 106 "sparql_parser.y"
+#line 108 "sparql_parser.y"
     {
-    if (strcmp((yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval)) != 0)
-        (yyval.sval) = talloc_asprintf(ssp_slq, "{ %s } UNION { %s }", (yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval));
-    else
-        (yyval.sval) = talloc_asprintf(ssp_slq, "%s", (yyvsp[(1) - (3)].sval));
+	if (strcmp((yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval)) != 0) {
+		(yyval.sval) = talloc_asprintf(ssp_slq, "{ %s } UNION { %s }", (yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval));
+	} else {
+		(yyval.sval) = talloc_asprintf(ssp_slq, "%s", (yyvsp[(1) - (3)].sval));
+	}
 }
     break;
 
   case 7:
 /* Line 1792 of yacc.c  */
-#line 112 "sparql_parser.y"
-    {(yyval.sval) = (yyvsp[(1) - (1)].sval); if ((yyval.sval) == NULL) YYABORT;}
+#line 115 "sparql_parser.y"
+    {
+	(yyval.sval) = (yyvsp[(1) - (1)].sval); if ((yyval.sval) == NULL) YYABORT;
+}
     break;
 
   case 8:
 /* Line 1792 of yacc.c  */
-#line 113 "sparql_parser.y"
-    {(yyval.sval) = (yyvsp[(1) - (1)].sval);}
+#line 118 "sparql_parser.y"
+    {
+	(yyval.sval) = (yyvsp[(1) - (1)].sval);
+}
     break;
 
   case 9:
 /* Line 1792 of yacc.c  */
-#line 114 "sparql_parser.y"
-    {(yyval.sval) = talloc_asprintf(ssp_slq, "%s", (yyvsp[(2) - (3)].sval));}
+#line 121 "sparql_parser.y"
+    {
+	(yyval.sval) = talloc_asprintf(ssp_slq, "%s", (yyvsp[(2) - (3)].sval));
+}
     break;
 
   case 10:
 /* Line 1792 of yacc.c  */
-#line 115 "sparql_parser.y"
-    {(yyval.sval) = talloc_asprintf(ssp_slq, "%s . %s", (yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval));}
+#line 124 "sparql_parser.y"
+    {
+	(yyval.sval) = talloc_asprintf(ssp_slq, "%s . %s", (yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval));
+}
     break;
 
   case 11:
 /* Line 1792 of yacc.c  */
-#line 116 "sparql_parser.y"
+#line 127 "sparql_parser.y"
     {
-    if (strcmp((yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval)) != 0)
-        (yyval.sval) = talloc_asprintf(ssp_slq, "{ %s } UNION { %s }", (yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval));
-    else
-        (yyval.sval) = talloc_asprintf(ssp_slq, "%s", (yyvsp[(1) - (3)].sval));
+	if (strcmp((yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval)) != 0) {
+		(yyval.sval) = talloc_asprintf(ssp_slq, "{ %s } UNION { %s }", (yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval));
+	} else {
+		(yyval.sval) = talloc_asprintf(ssp_slq, "%s", (yyvsp[(1) - (3)].sval));
+	}
 }
     break;
 
   case 12:
 /* Line 1792 of yacc.c  */
-#line 125 "sparql_parser.y"
+#line 137 "sparql_parser.y"
     {(yyval.sval) = map_expr((yyvsp[(1) - (5)].sval), '=', (yyvsp[(4) - (5)].sval));}
     break;
 
   case 13:
 /* Line 1792 of yacc.c  */
-#line 126 "sparql_parser.y"
+#line 138 "sparql_parser.y"
     {(yyval.sval) = map_expr((yyvsp[(1) - (5)].sval), '!', (yyvsp[(4) - (5)].sval));}
     break;
 
   case 14:
 /* Line 1792 of yacc.c  */
-#line 127 "sparql_parser.y"
+#line 139 "sparql_parser.y"
     {(yyval.sval) = map_expr((yyvsp[(1) - (5)].sval), '<', (yyvsp[(4) - (5)].sval));}
     break;
 
   case 15:
 /* Line 1792 of yacc.c  */
-#line 128 "sparql_parser.y"
+#line 140 "sparql_parser.y"
     {(yyval.sval) = map_expr((yyvsp[(1) - (5)].sval), '>', (yyvsp[(4) - (5)].sval));}
     break;
 
   case 16:
 /* Line 1792 of yacc.c  */
-#line 129 "sparql_parser.y"
+#line 141 "sparql_parser.y"
     {(yyval.sval) = map_expr((yyvsp[(1) - (6)].sval), '=', (yyvsp[(4) - (6)].sval));}
     break;
 
   case 17:
 /* Line 1792 of yacc.c  */
-#line 130 "sparql_parser.y"
+#line 142 "sparql_parser.y"
     {(yyval.sval) = map_expr((yyvsp[(1) - (6)].sval), '!', (yyvsp[(4) - (6)].sval));}
     break;
 
   case 18:
 /* Line 1792 of yacc.c  */
-#line 131 "sparql_parser.y"
+#line 143 "sparql_parser.y"
     {(yyval.sval) = map_expr((yyvsp[(1) - (6)].sval), '<', (yyvsp[(4) - (6)].sval));}
     break;
 
   case 19:
 /* Line 1792 of yacc.c  */
-#line 132 "sparql_parser.y"
+#line 144 "sparql_parser.y"
     {(yyval.sval) = map_expr((yyvsp[(1) - (6)].sval), '>', (yyvsp[(4) - (6)].sval));}
     break;
 
   case 20:
 /* Line 1792 of yacc.c  */
-#line 136 "sparql_parser.y"
-    {(yyval.sval) = map_daterange((yyvsp[(3) - (8)].sval), (yyvsp[(5) - (8)].tval), (yyvsp[(7) - (8)].tval));}
+#line 148 "sparql_parser.y"
+    {
+	(yyval.sval) = map_daterange((yyvsp[(3) - (8)].sval), (yyvsp[(5) - (8)].tval), (yyvsp[(7) - (8)].tval));
+}
     break;
 
   case 21:
 /* Line 1792 of yacc.c  */
-#line 140 "sparql_parser.y"
+#line 154 "sparql_parser.y"
     {(yyval.tval) = isodate2unix((yyvsp[(3) - (4)].sval));}
     break;
 
   case 22:
 /* Line 1792 of yacc.c  */
-#line 141 "sparql_parser.y"
+#line 155 "sparql_parser.y"
     {(yyval.tval) = atoi((yyvsp[(1) - (1)].sval)) + SPRAW_TIME_OFFSET;}
     break;
 
 
 /* Line 1792 of yacc.c  */
-#line 1566 "sparql_parser.c"
+#line 1580 "sparql_parser.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -1794,7 +1808,7 @@ yyreturn:
 
 
 /* Line 2055 of yacc.c  */
-#line 144 "sparql_parser.y"
+#line 158 "sparql_parser.y"
 
 
 static time_t isodate2unix(const char *s)
@@ -1806,7 +1820,8 @@ static time_t isodate2unix(const char *s)
 	return mktime(&tm);
 }
 
-static const char *map_daterange(const char *dateattr, time_t date1, time_t date2)
+static const char *map_daterange(const char *dateattr,
+				 time_t date1, time_t date2)
 {
 	int result = 0;
 	char *sparql = NULL;
@@ -1829,15 +1844,16 @@ static const char *map_daterange(const char *dateattr, time_t date1, time_t date
 	strftime(buf2, sizeof(buf2), "%Y-%m-%dT%H:%M:%SZ", tmp);
 
 	for (p = spotlight_sparql_map; p->ssm_spotlight_attr; p++) {
-		if (strcmp(dateattr, p->ssm_spotlight_attr) == 0) {
-			sparql = talloc_asprintf(ssp_slq,
-						 "?obj %s ?%c FILTER (?%c > '%s' && ?%c < '%s')",
-						 p->ssm_sparql_attr,
-						 sparqlvar,
-						 sparqlvar,
-						 buf1,
-						 sparqlvar,
-						 buf2);
+		if (strequal(dateattr, p->ssm_spotlight_attr)) {
+			sparql = talloc_asprintf(
+				ssp_slq,
+				"?obj %s ?%c FILTER (?%c > '%s' && ?%c < '%s')",
+				p->ssm_sparql_attr,
+				sparqlvar,
+				sparqlvar,
+				buf1,
+				sparqlvar,
+				buf2);
 			sparqlvar++;
 			break;
 		}
@@ -1889,27 +1905,33 @@ static const char *map_expr(const char *attr, char op, const char *val)
 
 	for (p = spotlight_sparql_map; p->ssm_spotlight_attr; p++) {
 		if (strcmp(p->ssm_spotlight_attr, attr) == 0) {
-			if (p->ssm_type != ssmt_type && p->ssm_sparql_attr == NULL) {
+			if (p->ssm_type != ssmt_type
+			    && p->ssm_sparql_attr == NULL) {
 				yyerror("unsupported Spotlight attribute");
 				result = -1;
 				goto exit;
 			}
 			switch (p->ssm_type) {
 			case ssmt_bool:
-				sparql = talloc_asprintf(ssp_slq, "?obj %s '%s'", p->ssm_sparql_attr, val);
+				sparql = talloc_asprintf(
+					ssp_slq, "?obj %s '%s'",
+					p->ssm_sparql_attr, val);
 				if (!sparql) {
 					result = -1;
 					goto exit;
 				}
 				break;
 			case ssmt_num:
-				sparql = talloc_asprintf(ssp_slq, "?obj %s ?%c FILTER(?%c %c%c '%s')",
-							 p->ssm_sparql_attr,
-							 sparqlvar,
-							 sparqlvar,
-							 op,
-							 op == '!' ? '=' : ' ', /* append '=' to '!' */
-							 val);
+				sparql = talloc_asprintf(
+					ssp_slq,
+					"?obj %s ?%c FILTER(?%c %c%c '%s')",
+					p->ssm_sparql_attr,
+					sparqlvar,
+					sparqlvar,
+					op,
+					/* append '=' to '!' */
+					op == '!' ? '=' : ' ',
+					val);
 				if (!sparql) {
 					result = -1;
 					goto exit;
@@ -1929,7 +1951,8 @@ static const char *map_expr(const char *attr, char op, const char *val)
 						continue;
 					}
 					if (val > start) {
-						q = talloc_strndup_append(q, start, val - start);
+						q = talloc_strndup_append(
+							q, start, val - start);
 						if (!q) {
 							result = -1;
 							goto exit;
@@ -1944,17 +1967,21 @@ static const char *map_expr(const char *attr, char op, const char *val)
 					start = val;
 				}
 				if (val > start) {
-					q = talloc_strndup_append(q, start, val - start);
+					q = talloc_strndup_append(
+						q, start, val - start);
 					if (!q) {
 						result = -1;
 						goto exit;
 					}
 				}
-				sparql = talloc_asprintf(ssp_slq, "?obj %s ?%c FILTER(regex(?%c, '^%s$'))",
-							 p->ssm_sparql_attr,
-							 sparqlvar,
-							 sparqlvar,
-							 q);
+				sparql = talloc_asprintf(
+					ssp_slq,
+					"?obj %s ?%c "
+					"FILTER(regex(?%c, '^%s$'))",
+					p->ssm_sparql_attr,
+					sparqlvar,
+					sparqlvar,
+					q);
 				if (!sparql) {
 					result = -1;
 					goto exit;
@@ -1962,7 +1989,9 @@ static const char *map_expr(const char *attr, char op, const char *val)
 				sparqlvar++;
 				break;
 			case ssmt_fts:
-				sparql = talloc_asprintf(ssp_slq, "?obj %s '%s'", p->ssm_sparql_attr, val);
+				sparql = talloc_asprintf(
+					ssp_slq, "?obj %s '%s'",
+					p->ssm_sparql_attr, val);
 				if (!sparql) {
 					result = -1;
 					goto exit;
@@ -1975,13 +2004,16 @@ static const char *map_expr(const char *attr, char op, const char *val)
 					result = -1;
 					goto exit;
 				}
-				strftime(buf1, sizeof(buf1), "%Y-%m-%dT%H:%M:%SZ", tmp);
-				sparql = talloc_asprintf(ssp_slq, "?obj %s ?%c FILTER(?%c %c '%s')",
-							 p->ssm_sparql_attr,
-							 sparqlvar,
-							 sparqlvar,
-							 op,
-							 buf1);
+				strftime(buf1, sizeof(buf1),
+					 "%Y-%m-%dT%H:%M:%SZ", tmp);
+				sparql = talloc_asprintf(
+					ssp_slq,
+					"?obj %s ?%c FILTER(?%c %c '%s')",
+					p->ssm_sparql_attr,
+					sparqlvar,
+					sparqlvar,
+					op,
+					buf1);
 				if (!sparql) {
 					result = -1;
 					goto exit;

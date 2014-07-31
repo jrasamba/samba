@@ -68,12 +68,12 @@ extern int yydebug;
 typedef union YYSTYPE
 {
 /* Line 2058 of yacc.c  */
-#line 57 "sparql_parser.y"
+#line 58 "sparql_parser.y"
 
-    int ival;
-    const char *sval;
-    bool bval;
-    time_t tval;
+	int ival;
+	const char *sval;
+	bool bval;
+	time_t tval;
 
 
 /* Line 2058 of yacc.c  */
@@ -103,12 +103,13 @@ int yyparse ();
 /* Line 2058 of yacc.c  */
 #line 51 "sparql_parser.y"
 
-  #define SPRAW_TIME_OFFSET 978307200
-  extern bool map_spotlight_to_sparql_query(struct sl_query *slq, char **sparql_result);
-  extern struct sl_query *ssp_slq;
+	#define SPRAW_TIME_OFFSET 978307200
+	extern bool map_spotlight_to_sparql_query(struct sl_query *slq,
+						  char **sparql_result);
+	extern struct sl_query *ssp_slq;
 
 
 /* Line 2058 of yacc.c  */
-#line 113 "sparql_parser.h"
+#line 114 "sparql_parser.h"
 
 #endif /* !YY_YY_SPARQL_PARSER_H_INCLUDED  */

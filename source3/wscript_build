@@ -828,7 +828,9 @@ bld.SAMBA3_SUBSYSTEM('INIT_SAMR',
                     deps='samba-util')
 
 bld.SAMBA3_SUBSYSTEM('MDSSVC',
-                    source='mdssvc/mdssvc.c',
+                    source='''
+                    mdssvc/mdssvc.c
+                    mdssvc/dalloc.c''',
                     deps='glib-2.0 gio-2.0 gobject-2.0 ' + bld.env['libtracker'],
                     enabled=bld.env.with_spotlight)
 

@@ -1,0 +1,17 @@
+<samba:parameter name="spotlight"
+	         context="S"
+			 type="boolean"
+		 xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">
+<description>
+	<para>
+	  This parameter controls whether Samba allows Spotlight
+	  queries on a share by OS X clients. For controlling indexing
+	  of filesystems you still have to use Tracker's own config.
+	</para>
+
+	<para>
+	This option is disabled by default.
+	</para>
+</description>
+<value type="default">no</value>
+</samba:parameter>

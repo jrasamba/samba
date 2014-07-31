@@ -870,6 +870,15 @@ struct parm_struct parm_table[] = {
 		.flags		= FLAG_BASIC | FLAG_ADVANCED | FLAG_SHARE,
 	},
 	{
+		.label		= "spotlight",
+		.type		= P_BOOL,
+		.p_class	= P_LOCAL,
+		.offset		= LOCAL_VAR(spotlight),
+		.special	= NULL,
+		.enum_list	= NULL,
+		.flags		= FLAG_BASIC | FLAG_ADVANCED | FLAG_SHARE,
+	},
+	{
 		.label		= "write ok",
 		.type		= P_BOOLREV,
 		.p_class	= P_LOCAL,

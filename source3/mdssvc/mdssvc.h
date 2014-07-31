@@ -18,4 +18,48 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-int mds_dispatch(void);
+#ifndef _MDSSVC_H
+#define _MDSSVC_H
+
+#include "dalloc.h"
+
+/******************************************************************************
+ * Spotlight RPC and marshalling stuff
+ ******************************************************************************/
+
+/* Can be ored and used as flags */
+#define SL_ENC_LITTLE_ENDIAN 1
+#define SL_ENC_BIG_ENDIAN    2
+#define SL_ENC_UTF_16        4
+
+typedef DALLOC_CTX     sl_array_t;    /* an array of elements */
+typedef DALLOC_CTX     sl_dict_t;     /* an array of key/value elements */
+typedef DALLOC_CTX     sl_filemeta_t; /* contains one sl_array_t */
+typedef int            sl_nil_t;      /* a nil element */
+typedef bool           sl_bool_t;
+typedef struct timeval sl_time_t;
+typedef struct {
+	char sl_uuid[16];
+}  sl_uuid_t;
+typedef struct {
+	uint16_t   ca_unkn1;
+	uint32_t   ca_context;
+	DALLOC_CTX *ca_cnids;
+}  sl_cnids_t; /* an array of CNIDs */
+
+/******************************************************************************
+ * Function declarations
+ ******************************************************************************/
+
+/*
+ * marshalling.c
+ */
+extern ssize_t sl_pack(DALLOC_CTX *query, char *buf);
+extern bool sl_unpack(DALLOC_CTX *query, const char *buf);
+
+/*
+ * mdssvc.c
+ */
+extern int mds_init(void);
+
+#endif /* _MDSSVC_H */

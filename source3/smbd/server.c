@@ -85,6 +85,9 @@ extern void start_epmd(struct tevent_context *ev_ctx,
 extern void start_lsasd(struct tevent_context *ev_ctx,
 			struct messaging_context *msg_ctx);
 
+extern void start_mdssd(struct tevent_context *ev_ctx,
+			struct messaging_context *msg_ctx);
+
 #ifdef WITH_DFS
 extern int dcelogin_atmost_once;
 #endif /* WITH_DFS */
@@ -1516,6 +1519,11 @@ extern void build_options(bool screen);
 			if (!printing_subsystem_init(ev_ctx, msg_ctx, true, bgq)) {
 				exit_daemon("Samba failed to init printing subsystem", EACCES);
 			}
+		}
+
+		if ((rpc_mdssvc_mode() == RPC_SERVICE_MODE_EXTERNAL) &&
+		    (rpc_mdssd_daemon() == RPC_DAEMON_FORK)) {
+			start_mdssd(ev_ctx, msg_ctx);
 		}
 	} else if (!lp__disable_spoolss() &&
 		   (rpc_spoolss_daemon() != RPC_DAEMON_DISABLED)) {

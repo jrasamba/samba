@@ -167,3 +167,7 @@ bld.SAMBA3_SUBSYSTEM('EPMD',
 bld.SAMBA3_SUBSYSTEM('LSASD',
                     source='lsasd.c',
                     deps='RPC_SOCK_HELPER samba-util')
+
+bld.SAMBA3_SUBSYSTEM('MDSSD',
+                    source='mdssd.c',
+                    deps='RPC_SOCK_HELPER samba-util')

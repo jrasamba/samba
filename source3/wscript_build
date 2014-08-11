@@ -842,7 +842,7 @@ bld.SAMBA3_SUBSYSTEM('MDSSVC',
 
 bld.SAMBA3_BINARY('smbd/smbd',
                  source='smbd/server.c',
-                 deps='smbd_base EPMD LSASD',
+                 deps='smbd_base EPMD LSASD MDSSD',
                  install_path='${SBINDIR}')
 
 bld.SAMBA3_BINARY('nmbd/nmbd',

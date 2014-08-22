@@ -40,6 +40,7 @@
 #include "rpc_server/srv_pipe_hnd.h"
 #include "printing.h"
 #include "lib/util_ea.h"
+#include "MacExtensions.h"
 
 #define DIR_ENTRY_SAFETY_MARGIN 4096
 
@@ -1595,6 +1596,96 @@ static bool smbd_dirptr_lanman2_mode_fn(TALLOC_CTX *ctx,
 	return true;
 }
 
+/**
+ * Check and possibly read AFPINFO_STREAM stream from a file or dir
+ *
+ * If the file has an associated AFPINFO_STREAM stream, FinderInfo is
+ * returned in packed format in the buffer pointed to by
+ * compressed_finder_info. The buffer must suitably sized (16 bytes).
+ **/
+static void get_compressed_finder_info(connection_struct *conn,
+				       const struct smb_filename *smb_fname,
+				       char *compressed_finder_info)
+{
+	struct smb_filename *infoname = NULL;
+	files_struct *fsp = NULL;
+	NTSTATUS status;
+	ssize_t len;
+	uint8_t ai[AFP_INFO_SIZE];
+	uint32_t date_added;
+	int ret;
+
+	memset(compressed_finder_info, '\0', 16);
+
+	infoname = synthetic_smb_fname(talloc_tos(),
+				       smb_fname->base_name,
+				       AFPINFO_STREAM,
+				       NULL);
+
+	DEBUG(10, ("reading AFPINFO_STREAM for %s\n",
+		   smb_fname_str_dbg(infoname)));
+
+	ret = SMB_VFS_STAT(conn, infoname);
+	if (ret != 0) {
+		goto error;
+	}
+
+        status = SMB_VFS_CREATE_FILE(
+	    conn,                                   /* conn */
+	    NULL,                                   /* req */
+	    0,                                      /* root_dir_fid */
+	    infoname,                               /* fname */
+	    FILE_READ_DATA,                         /* access_mask */
+	    (FILE_SHARE_READ | FILE_SHARE_WRITE |   /* share_access */
+	     FILE_SHARE_DELETE),
+	    FILE_OPEN,                              /* create_disposition*/
+	    0,                                      /* create_options */
+	    0,                                      /* file_attributes */
+	    INTERNAL_OPEN_ONLY,                     /* oplock_request */
+	    NULL,                                   /* lease */
+	    0,                                      /* allocation_size */
+	    0,                                      /* private_flags */
+	    NULL,                                   /* sd */
+	    NULL,                                   /* ea_list */
+	    &fsp,                                   /* result */
+	    NULL);                                  /* pinfo */
+
+	if (!NT_STATUS_IS_OK(status)) {
+		goto error;
+	}
+
+	len = SMB_VFS_PREAD(fsp, ai, AFP_INFO_SIZE, 0);
+	if (len != AFP_INFO_SIZE) {
+		DEBUG(1, ("bad length: %ju\n", (intmax_t)len));
+		goto error;
+	}
+
+	/* AD_DATE_DELTA = 946684800 */
+	date_added = convert_time_t_to_uint32_t(
+		smb_fname->st.st_ex_btime.tv_sec)
+		- 946684800;
+
+	if (S_ISREG(smb_fname->st.st_ex_mode)) {
+		/* finder_type */
+		memcpy(compressed_finder_info, ai + 16, 4);
+		/* finder_creator */
+		memcpy(compressed_finder_info + 4, ai + 20, 4);
+	}
+	/* finder_flags */
+	memcpy(compressed_finder_info + 8, ai + 24, 2);
+	/* finder_ext_flags */
+	memcpy(compressed_finder_info + 10, ai + 40, 2);
+	/* finder_date_added, could also use stat_ex.btime instead */
+	RSIVAL(compressed_finder_info, 12, date_added);
+
+error:
+	if (fsp != NULL) {
+		SMB_VFS_CLOSE(fsp);
+	}
+	talloc_free(infoname);
+	return;
+}
+
 static NTSTATUS smbd_marshall_dir_entry(TALLOC_CTX *ctx,
 				    connection_struct *conn,
 				    uint16_t flags2,
@@ -2098,17 +2189,62 @@ static NTSTATUS smbd_marshall_dir_entry(TALLOC_CTX *ctx,
 		q = p; p += 4; /* q is placeholder for name length */
 		if (mode & FILE_ATTRIBUTE_REPARSE_POINT) {
 			SIVAL(p, 0, IO_REPARSE_TAG_DFS);
+		} else if ((conn->smb2_crtctx_aapl_readdir_attr) &&
+			   (conn->fs_capabilities & FILE_NAMED_STREAMS)) {
+			/*
+			 * OS X specific SMB2 extension negotiated via
+			 * AAPL create context: return max_access in
+			 * ea_size field.
+			 */
+			uint32_t max_access_granted;
+			NTSTATUS status;
+			status = smbd_calculate_access_mask(conn,
+							    smb_fname,
+							    false,
+							    SEC_FLAG_MAXIMUM_ALLOWED,
+							    &max_access_granted);
+			if (!NT_STATUS_IS_OK(status)) {
+				max_access_granted = 0;
+			}
+			SIVAL(p, 0, max_access_granted);
 		} else {
 			unsigned int ea_size = estimate_ea_size(conn, NULL,
 								smb_fname);
 			SIVAL(p,0,ea_size); /* Extended attributes */
 		}
 		p += 4;
-		/* Clear the short name buffer. This is
-		 * IMPORTANT as not doing so will trigger
-		 * a Win2k client bug. JRA.
-		 */
-		if (!was_8_3 && check_mangled_names) {
+
+		if ((conn->smb2_crtctx_aapl_readdir_attr) &&
+		    (conn->fs_capabilities & FILE_NAMED_STREAMS)) {
+			/*
+			 * OS X specific SMB2 extension negotiated via
+			 * AAPL create context: return resource fork
+			 * lenght and compressed FinderInfo in
+			 * shortname field.
+			 */
+			int ret;
+			struct smb_filename *resoname;
+			uint64_t rfork_size = 0;
+			/*
+			 * According to documentation short_name_len
+			 * should be 0, but on the wire behaviour
+			 * shows its set to 24 by clients.
+			 */
+			SSVAL(p, 0, 24);
+
+			resoname = synthetic_smb_fname(talloc_tos(),
+						       smb_fname->base_name,
+						       AFPRESOURCE_STREAM,
+						       NULL);
+			ret = SMB_VFS_STAT(conn, resoname);
+			if (ret == 0) {
+				rfork_size = resoname->st.st_ex_size;
+			}
+			TALLOC_FREE(resoname);
+			SBVAL(p + 2, 0, rfork_size);
+
+			get_compressed_finder_info(conn, smb_fname, p + 10);
+		} else if (!was_8_3 && check_mangled_names) {
 			char mangled_name[13]; /* mangled 8.3 name. */
 			if (!name_to_8_3(fname,mangled_name,True,
 					conn->params)) {
@@ -2128,10 +2264,28 @@ static NTSTATUS smbd_marshall_dir_entry(TALLOC_CTX *ctx,
 			}
 			SSVAL(p, 0, len);
 		} else {
+			/* Clear the short name buffer. This is
+			 * IMPORTANT as not doing so will trigger
+			 * a Win2k client bug. JRA.
+			 */
 			memset(p,'\0',26);
 		}
 		p += 26;
-		SSVAL(p,0,0); p += 2; /* Reserved ? */
+
+		/* Reserved ? */
+		if ((conn->smb2_crtctx_aapl_readdir_attr) &&
+		    (conn->fs_capabilities & FILE_NAMED_STREAMS)) {
+			/*
+			 * OS X specific SMB2 extension negotiated via
+			 * AAPL create context: return UNIX mode in
+			 * reserved field.
+			 */
+			SSVAL(p, 0, (uint16_t)smb_fname->st.st_ex_mode);
+		} else {
+			SSVAL(p, 0, 0);
+		}
+		p += 2;
+
 		SBVAL(p,0,file_index); p += 8;
 		status = srvstr_push(base_data, flags2, p,
 				  fname, PTR_DIFF(end_data, p),

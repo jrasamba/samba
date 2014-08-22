@@ -24,6 +24,7 @@
 #include "smbd/smbd.h"
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
+#include "../libcli/smb/smb2_create_ctx.h"
 #include "../librpc/gen_ndr/ndr_security.h"
 #include "../lib/util/tevent_ntstatus.h"
 #include "messages.h"
@@ -598,6 +599,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 		uint64_t allocation_size = 0;
 		struct smb2_create_blob *twrp = NULL;
 		struct smb2_create_blob *qfid = NULL;
+		struct smb2_create_blob *aapl = NULL;
 		struct GUID _create_guid = GUID_zero();
 		struct GUID *create_guid = NULL;
 		bool update_open = false;
@@ -618,6 +620,10 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 					     SMB2_CREATE_TAG_TWRP);
 		qfid = smb2_create_blob_find(&in_context_blobs,
 					     SMB2_CREATE_TAG_QFID);
+		if (smb2req->xconn->smb2.server.use_aapl_crtctx) {
+			aapl = smb2_create_blob_find(&in_context_blobs,
+						     SMB2_CREATE_TAG_AAPL);
+		}
 
 		fname = talloc_strdup(state, in_name);
 		if (tevent_req_nomem(fname, req)) {
@@ -799,6 +805,24 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 
 		if (qfid) {
 			if (qfid->data.length != 0) {
+				tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+				return tevent_req_post(req, ev);
+			}
+		}
+
+		if (aapl) {
+			uint32_t cmd;
+
+			if (aapl->data.length != 24) {
+				DEBUG(1, ("unexpected AAPL ctxt legnth: %ju\n",
+					  (uintmax_t)aapl->data.length));
+				tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+				return tevent_req_post(req, ev);
+			}
+
+			cmd = IVAL(aapl->data.data, 0);
+			if (cmd != SMB2_CRTCTX_AAPL_SERVER_QUERY) {
+				DEBUG(1, ("unsupported AAPL cmd: %d\n", cmd));
 				tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
 				return tevent_req_post(req, ev);
 			}
@@ -1080,6 +1104,88 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 
 			status = smb2_create_blob_add(state, &out_context_blobs,
 						      SMB2_CREATE_TAG_QFID,
+						      blob);
+			if (!NT_STATUS_IS_OK(status)) {
+				tevent_req_nterror(req, status);
+				return tevent_req_post(req, ev);
+			}
+		}
+
+		if (aapl) {
+			/* We know we have a SMB2_CRTCTX_AAPL_SERVER_QUERY query */
+			bool ok;
+			uint8_t p[16];
+			DATA_BLOB blob = data_blob_talloc(smb2req, NULL, 0);
+			uint64_t req_bitmap, client_caps;
+			uint64_t server_caps = SMB2_CRTCTX_AAPL_UNIX_BASED;
+
+			req_bitmap = BVAL(aapl->data.data, 8);
+			client_caps = BVAL(aapl->data.data, 16);
+
+			SIVAL(p, 0, SMB2_CRTCTX_AAPL_SERVER_QUERY);
+			SIVAL(p, 4, 0);
+			SBVAL(p, 8, req_bitmap);
+			ok = data_blob_append(smb2req, &blob, p, 16);
+			if (!ok) {
+				tevent_req_nterror(req, NT_STATUS_UNSUCCESSFUL);
+				return tevent_req_post(req, ev);
+			}
+
+			if (req_bitmap & SMB2_CRTCTX_AAPL_SERVER_CAPS) {
+				if ((client_caps & SMB2_CRTCTX_AAPL_SUPPORTS_READ_DIR_ATTR) &&
+				    (smb2req->tcon->compat->fs_capabilities & FILE_NAMED_STREAMS)) {
+					server_caps |= SMB2_CRTCTX_AAPL_SUPPORTS_READ_DIR_ATTR;
+					smb2req->tcon->compat->smb2_crtctx_aapl_readdir_attr = true;
+				}
+				SBVAL(p, 0, server_caps);
+				ok = data_blob_append(smb2req, &blob, p, 8);
+				if (!ok) {
+					tevent_req_nterror(req, NT_STATUS_UNSUCCESSFUL);
+					return tevent_req_post(req, ev);
+				}
+			}
+
+			if (req_bitmap & SMB2_CRTCTX_AAPL_VOLUME_CAPS) {
+				SBVAL(p, 0,
+				      lp_case_sensitive(SNUM(smb2req->tcon->compat)) ?
+				      SMB2_CRTCTX_AAPL_CASE_SENSITIVE : 0);
+				ok = data_blob_append(smb2req, &blob, p, 8);
+				if (!ok) {
+					tevent_req_nterror(req, NT_STATUS_UNSUCCESSFUL);
+					return tevent_req_post(req, ev);
+				}
+			}
+
+			if (req_bitmap & SMB2_CRTCTX_AAPL_MODEL_INFO) {
+				smb_ucs2_t *model;
+				size_t modellen;
+				ok = convert_string_talloc(smb2req,
+							   CH_UNIX, CH_UTF16LE,
+							   "Samba", strlen("Samba"),
+							   &model, &modellen);
+				if (!ok) {
+					tevent_req_nterror(req, NT_STATUS_UNSUCCESSFUL);
+					return tevent_req_post(req, ev);
+				}
+
+				SIVAL(p, 0, 0);
+				SIVAL(p + 4, 0, modellen);
+				ok = data_blob_append(smb2req, &blob, p, 8);
+				if (!ok) {
+					tevent_req_nterror(req, NT_STATUS_UNSUCCESSFUL);
+					return tevent_req_post(req, ev);
+				}
+
+				ok = data_blob_append(smb2req, &blob, model, modellen);
+				if (!ok) {
+					tevent_req_nterror(req, NT_STATUS_UNSUCCESSFUL);
+					return tevent_req_post(req, ev);
+				}
+				talloc_free(model);
+			}
+
+			status = smb2_create_blob_add(state, &out_context_blobs,
+						      SMB2_CREATE_TAG_AAPL,
 						      blob);
 			if (!NT_STATUS_IS_OK(status)) {
 				tevent_req_nterror(req, status);

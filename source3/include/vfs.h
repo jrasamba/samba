@@ -355,6 +355,8 @@ typedef struct connection_struct {
 	bool case_sensitive;
 	bool case_preserve;
 	bool short_case_preserve;
+	bool smb2_crtctx_aapl_readdir_attr;
+	bool smb2_crtctx_aapl_unix_info;
 
 	/* Semantics provided by the underlying filesystem. */
 	int fs_capabilities;

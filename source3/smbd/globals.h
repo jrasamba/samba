@@ -496,6 +496,7 @@ struct smbXsrv_connection {
 			uint32_t max_trans;
 			uint32_t max_read;
 			uint32_t max_write;
+			bool use_aapl_crtctx;
 		} server;
 
 		struct smbd_smb2_request *requests;

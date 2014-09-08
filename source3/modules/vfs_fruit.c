@@ -2903,6 +2903,175 @@ fail:
 	return status;
 }
 
+/* NT ACL operations. */
+
+static NTSTATUS fruit_fget_nt_acl(vfs_handle_struct *handle,
+				  files_struct *fsp,
+				  uint32 security_info,
+				  TALLOC_CTX *mem_ctx,
+				  struct security_descriptor **ppdesc)
+{
+	NTSTATUS result;
+	struct security_descriptor *sd;
+	struct security_ace ace;
+	struct dom_sid sid;
+
+	result = SMB_VFS_NEXT_FGET_NT_ACL(handle, fsp, security_info,
+					  mem_ctx, ppdesc);
+	if (!NT_STATUS_IS_OK(result)) {
+	    return result;
+	}
+
+	if (!handle->conn->smb2_crtctx_aapl_unix_info) {
+	     return result;
+	}
+
+	sd = *ppdesc;
+	if (sd == NULL) {
+		return result;
+	}
+
+	/* Add special NFS ACE with mode */
+	sid_compose(&sid, &global_sid_Unix_NFS_Mode,
+		    fsp->fsp_name->st.st_ex_mode);
+	init_sec_ace(&ace, &sid, SEC_ACE_TYPE_ACCESS_DENIED, 0, 0);
+	result = security_descriptor_dacl_add(sd, &ace);
+	if (!NT_STATUS_IS_OK(result)) {
+	    return result;
+	}
+
+	/* Add special NFS ACE with uid */
+	sid_compose(&sid, &global_sid_Unix_NFS_Users,
+		    fsp->fsp_name->st.st_ex_uid);
+	init_sec_ace(&ace, &sid, SEC_ACE_TYPE_ACCESS_DENIED, 0, 0);
+	result = security_descriptor_dacl_add(sd, &ace);
+	if (!NT_STATUS_IS_OK(result)) {
+	    return result;
+	}
+
+	/* Add special NFS ACE with gid */
+	sid_compose(&sid, &global_sid_Unix_NFS_Groups,
+		    fsp->fsp_name->st.st_ex_gid);
+	init_sec_ace(&ace, &sid, SEC_ACE_TYPE_ACCESS_DENIED, 0, 0);
+	result = security_descriptor_dacl_add(sd, &ace);
+	if (!NT_STATUS_IS_OK(result)) {
+	    return result;
+	}
+
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS fruit_get_nt_acl(vfs_handle_struct *handle,
+				 const char *name,
+				 uint32 security_info,
+				 TALLOC_CTX *mem_ctx,
+				 struct security_descriptor **ppdesc)
+{
+	NTSTATUS result;
+	struct security_descriptor *sd;
+	struct security_ace ace;
+	struct dom_sid sid;
+	struct smb_filename *smb_fname = NULL;
+	int rc;
+
+	result = SMB_VFS_NEXT_GET_NT_ACL(handle, name, security_info,
+					 mem_ctx, ppdesc);
+
+	if (!NT_STATUS_IS_OK(result)) {
+	    return result;
+	}
+
+	if (!handle->conn->smb2_crtctx_aapl_unix_info) {
+	     return NT_STATUS_OK;
+	}
+
+	sd = *ppdesc;
+	if (sd == NULL) {
+		return NT_STATUS_OK;
+	}
+
+	smb_fname = synthetic_smb_fname(talloc_tos(), name, NULL, NULL);
+	if (smb_fname == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	rc = SMB_VFS_STAT(handle->conn, smb_fname);
+	if (rc != 0) {
+		goto out;
+	}
+
+	/* Add special NFS ACE with mode */
+	sid_compose(&sid, &global_sid_Unix_NFS_Mode,
+		    smb_fname->st.st_ex_mode);
+	init_sec_ace(&ace, &sid, SEC_ACE_TYPE_ACCESS_DENIED, 0, 0);
+	result = security_descriptor_dacl_add(sd, &ace);
+	if (!NT_STATUS_IS_OK(result)) {
+		goto out;
+	}
+
+	/* Add special NFS ACE with uid */
+	sid_compose(&sid, &global_sid_Unix_NFS_Users,
+		    smb_fname->st.st_ex_uid);
+	init_sec_ace(&ace, &sid, SEC_ACE_TYPE_ACCESS_DENIED, 0, 0);
+	result = security_descriptor_dacl_add(sd, &ace);
+	if (!NT_STATUS_IS_OK(result)) {
+		goto out;
+	}
+
+	/* Add special NFS ACE with gid */
+	sid_compose(&sid, &global_sid_Unix_NFS_Groups,
+		    smb_fname->st.st_ex_gid);
+	init_sec_ace(&ace, &sid, SEC_ACE_TYPE_ACCESS_DENIED, 0, 0);
+	result = security_descriptor_dacl_add(sd, &ace);
+	if (!NT_STATUS_IS_OK(result)) {
+		goto out;
+	}
+
+out:
+	TALLOC_FREE(smb_fname);
+	return result;
+}
+
+static NTSTATUS fruit_fset_nt_acl(vfs_handle_struct *handle,
+				  files_struct *fsp,
+				  uint32 security_info_sent,
+				  const struct security_descriptor *psd)
+{
+	int i, rc;
+	bool do_chmod = false;
+	mode_t mode;
+
+	if (!handle->conn->smb2_crtctx_aapl_unix_info
+	    || psd->dacl == NULL
+	    || psd->dacl->aces == NULL) {
+		return SMB_VFS_NEXT_FSET_NT_ACL(handle, fsp,
+						security_info_sent, psd);
+	}
+
+	/* Search NFS ACE with mode */
+	for (i = 0; i < psd->dacl->num_aces; i++) {
+		if (dom_sid_compare_domain(&global_sid_Unix_NFS_Mode,
+					   &psd->dacl->aces[i].trustee) == 0) {
+			mode = (mode_t)psd->dacl->aces[i].trustee.sub_auths[2];
+			mode &= (S_IRWXU | S_IRWXG | S_IRWXO);
+			do_chmod = true;
+			break;
+		}
+	}
+
+	if (do_chmod) {
+		/* Apply mode and return without calling VFS_NEXT */
+		DEBUG(10, ("fruit_fset_nt_acl: %s, %04o\n",
+			   fsp_str_dbg(fsp), mode));
+		rc = SMB_VFS_FCHMOD(fsp, mode);
+		if (rc != 0) {
+			return map_nt_error_from_unix_common(rc);
+		}
+		return NT_STATUS_OK;
+	}
+
+	return SMB_VFS_NEXT_FSET_NT_ACL(handle, fsp, security_info_sent, psd);
+}
+
 static struct vfs_fn_pointers vfs_fruit_fns = {
 	.connect_fn = fruit_connect,
 
@@ -2924,6 +3093,12 @@ static struct vfs_fn_pointers vfs_fruit_fns = {
 	.ftruncate_fn = fruit_ftruncate,
 	.fallocate_fn = fruit_fallocate,
 	.create_file_fn = fruit_create_file,
+
+	/* NT ACL operations. */
+
+	.fget_nt_acl_fn = fruit_fget_nt_acl,
+	.get_nt_acl_fn = fruit_get_nt_acl,
+	.fset_nt_acl_fn = fruit_fset_nt_acl,
 };
 
 NTSTATUS vfs_fruit_init(void);

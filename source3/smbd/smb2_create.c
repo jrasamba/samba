@@ -1137,6 +1137,14 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 					server_caps |= SMB2_CRTCTX_AAPL_SUPPORTS_READ_DIR_ATTR;
 					smb2req->tcon->compat->smb2_crtctx_aapl_readdir_attr = true;
 				}
+
+				/*
+				 * The client doesn't set the flag, so we can't
+				 * check for it and just set it unconditionally
+				 */
+				server_caps |= SMB2_CRTCTX_AAPL_SUPPORTS_NFS_ACE;
+				smb2req->tcon->compat->smb2_crtctx_aapl_unix_info = true;
+
 				SBVAL(p, 0, server_caps);
 				ok = data_blob_append(smb2req, &blob, p, 8);
 				if (!ok) {

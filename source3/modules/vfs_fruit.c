@@ -1714,6 +1714,10 @@ static int fruit_connect(vfs_handle_struct *handle,
 			"0x0d:0xf00d");
 	}
 
+	if (lp_parm_bool(-1, "smb2 create tag", "aapl", true)) {
+		handle->conn->sconn->conn->smb2.server.use_aapl_crtctx = true;
+	}
+
 	return rc;
 }
 
